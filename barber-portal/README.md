@@ -1,7 +1,7 @@
 
-  # Trimly Barber Booking App
+  # High-Fidelity Barber Portal
 
-  This is a code bundle for Trimly Barber Booking App. The original project is available at https://www.figma.com/design/iko7kQpPiTGQwzBUXtGixM/Trimly-Barber-Booking-App.
+  This is a code bundle for High-Fidelity Barber Portal. The original project is available at https://www.figma.com/design/eZfQVOU6mNsRWNVSo7iInH/High-Fidelity-Barber-Portal.
 
   ## Running the code
 
