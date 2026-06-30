@@ -1,84 +1,47 @@
-# Architecture Knowledge Base
+# Sterling Chair Knowledge Base
 
-This document serves as the technical blueprint for the Salon Operations Platform. It explains *why* the repository is structured the way it is, and *how* the different environments and pieces of code interact. Use this guide to understand the system well enough to extend it independently.
+This document serves as the architectural brain of the Sterling Chair Salon application. It explains how the components communicate, the lifecycle of a booking, and the design decisions made to keep the system robust and maintainable.
 
----
+## 🏗 System Architecture
 
-## 1. The Monorepo Map (pnpm workspace)
+The application uses a **monorepo-style workspace** using `pnpm`, orchestrating a microservices architecture through Docker.
 
-The frontend codebase is managed as a `pnpm` workspace. This allows us to have multiple independent React applications (portals) that share the same underlying node modules and internal packages (like a shared UI library or Typescript interfaces).
+### 1. The Workspace (`apps/` & `packages/`)
+Instead of duplicating configurations, the frontends share a root `node_modules` structure managed by `pnpm-workspace.yaml`.
+- `apps/customer-portal`: React + Vite SPA on Port 81.
+- `apps/barber-portal`: React + Vite SPA on Port 82.
+- `apps/manager-portal`: React + Vite SPA on Port 80.
+- `packages/`: Intended for shared UI components or types (currently conceptual/lightly used).
 
-**Directory Structure:**
-```text
-/salon-app
-├── apps/
-│   ├── manager-portal/  (Port 80)
-│   ├── customer-portal/ (Port 81)
-│   └── barber-portal/   (Port 82)
-├── packages/
-│   ├── ui-core/         (Shared Radix/Tailwind components)
-│   └── shared-types/    (Shared Typescript Interfaces)
-├── backend/             (Python FastAPI server)
-├── scripts/             (Bash utility scripts)
-├── pnpm-workspace.yaml  (Defines the monorepo boundary)
-├── docker-compose.yml   (Global orchestration)
-└── nginx.conf           (Global reverse proxy routing)
-```
-**Why do it this way?**
-If you kept the 3 portals completely separate, you would have to copy-paste the `Button` component, the `Appointment` type interface, and the Tailwind config three times. The workspace links them together seamlessly.
+### 2. The Backend (`backend/`)
+Built with **FastAPI** (Python 3.9) and **SQLAlchemy**.
+- **Routers**: API logic is split by entity (`appointments.py`, `barbers.py`, `services.py`).
+- **Real-time Engine**: `websocket_manager.py` holds a global connection pool. When an appointment status changes (e.g., from `WAITING` to `IN_CHAIR`), it broadcasts a JSON payload to all connected clients.
+- **Database**: PostgreSQL handles all persistence.
 
----
+### 3. The Reverse Proxy (`nginx/`)
+Nginx acts as the gatekeeper.
+- It serves the static built files (`dist/`) for all three portals on specific ports.
+- It routes any traffic going to `/api/*` or `/ws` directly to the FastAPI container running on port 8000, eliminating CORS issues and hiding the backend from direct access.
 
-## 2. The Data Layer (PostgreSQL & SQLAlchemy)
+## 🔄 The Booking Lifecycle
 
-The database schema is strictly relational. It is defined in `backend/schema.sql`.
+Understanding this flow is critical for debugging edge cases.
 
-- **Users:** Base table for all people (Managers, Barbers, Customers).
-- **Services:** E.g., Haircut, Beard Trim. Includes duration and price.
-- **Barber_Services (Junction Table):** Not every barber can do every service. This maps who can do what.
-- **Appointments:** The core entity. 
-  - Uses a custom Postgres `ENUM ('Scheduled', 'Arrived', 'In_Chair', 'Completed', 'Cancelled', 'Delayed')`.
-  - This granular state allows the Manager dashboard to know exactly what is happening on the floor in real-time.
+1. **Selection (Customer Portal)**: The customer selects a service, a barber (Langu Maseko), and a time (`02:30 PM`).
+2. **Time Parsing Bug (Fixed)**: Previously, the portal sent `"02:30 PM:00"`. Now, `date-fns` parses it into 24-hour ISO format (`14:30:00`) before sending the POST request to `/api/appointments/`.
+3. **Database Entry**: FastAPI inserts the appointment with status `CONFIRMED`.
+4. **WebSocket Broadcast**: FastAPI fires `{"type": "NEW_APPOINTMENT", "payload": {"id": "..."}}`.
+5. **Manager Reaction**: The Manager Portal's `zustand` store receives the WS message and triggers a React Query invalidation. The UI flashes with the new appointment immediately.
+6. **Barber Execution**: The Barber Portal, observing the same queue endpoint, sees the appointment in their Calendar and Queue. They click "Start Service", which fires a PUT to `/api/appointments/{id}/status` with `IN_CHAIR`.
+7. **Resolution**: The Barber completes it (`COMPLETED`), or the Manager cancels it (`CANCELLED`). The WS broadcast updates all portals live.
 
-The Python backend uses **SQLAlchemy** (`backend/models.py`) to interact with these tables.
+## 🧠 State Management Philosophy
 
----
+- **Server State (`@tanstack/react-query`)**: All external data (Appointments, Services, Barbers) is fetched and cached by React Query. We do not use Redux/Zustand for this.
+- **Client State (`zustand`)**: Used exclusively for ephemeral UI state (e.g., the Booking Flow sequence in the Customer Portal) and managing the active WebSocket connection.
 
-## 3. The Real-Time Engine (FastAPI & Zustand)
+## 🛠 Modifying the Platform
 
-The magic of this application is that when a barber taps "Start Service" on their iPad, the Manager's dashboard updates instantly without refreshing.
-
-**How it works (Backend):**
-1. FastAPI (`backend/main.py`) runs a WebSocket endpoint at `/ws`.
-2. The `ConnectionManager` (`backend/websocket_manager.py`) keeps a list of all active client connections.
-3. When an appointment status changes via a normal REST POST request, the API triggers `manager.broadcast(json_payload)`.
-
-**How it works (Frontend):**
-1. The React app uses a global state manager called **Zustand** (`apps/manager-portal/src/store/liveStore.ts`).
-2. When the React app boots, `useLiveStore` connects to `ws://localhost:80/ws`.
-3. When it receives a message from the server, it instantly updates its internal state or triggers **React Query** to refetch the latest data from the REST API.
-
----
-
-## 4. The Infrastructure (Docker & Nginx)
-
-In a production environment, you cannot run 3 different `npm run dev` servers and a Python terminal. We use Docker to containerize everything.
-
-**The Nginx Proxy (`nginx.conf`):**
-Nginx is the "Traffic Cop". 
-- It listens on Ports 80, 81, and 82. 
-- If a user requests `http://localhost:80/`, Nginx serves the static HTML/JS files from the Manager Portal's `dist/` folder.
-- If a user requests `http://localhost:80/api/appointments`, Nginx intercepts it and **proxies** (forwards) the request to the hidden FastAPI container running on internal port 8000.
-- If a user attempts to open a WebSocket at `http://localhost:80/ws`, Nginx explicitly allows the HTTP request to "Upgrade" to a persistent WebSocket connection.
-
----
-
-## 5. Adding a New Feature (Workflow Guide)
-
-If you want to add a new feature (e.g., "Add a tip to an appointment"):
-
-1. **Database:** Does this require a new column? If so, modify `backend/schema.sql` and `backend/models.py` (add `tip_amount = Column(Integer)`).
-2. **Backend API:** Create a new REST endpoint in `backend/routers/appointments.py`. (e.g., `@router.post("/{appt_id}/tip")`).
-3. **Backend WebSocket (Optional):** If the manager needs to see the tip instantly, add a `await manager.broadcast({"type": "TIP_ADDED"})` inside your new endpoint.
-4. **Frontend API Client:** Add a new function in `apps/manager-portal/src/api/client.ts` to call your endpoint.
-5. **Frontend React:** Use `useMutation` from React Query in your component to trigger the API call, and update the UI!
+- **Adding a new Barber**: You must insert them into both `users` and `barber_profiles` tables in `backend/seed.sql`. The frontend arrays are dynamically populated from the API, so no frontend code changes are required!
+- **Adding a new Status**: Update the Postgres `Enum` in `schema.sql`, the Python `Enum` in `models.py`, and the status color maps in `App.tsx` of the portals.

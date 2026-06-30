@@ -14,3 +14,13 @@ export const fetchAppointments = async () => {
   const { data } = await apiClient.get('/appointments/');
   return data;
 };
+
+export const fetchBarbers = async () => {
+  const { data } = await apiClient.get('/barbers/');
+  return data;
+};
+
+export const updateAppointmentStatus = async (appointmentId: string, status: string) => {
+  const { data } = await apiClient.put(`/appointments/${appointmentId}/status`, { status });
+  return data;
+};

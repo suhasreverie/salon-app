@@ -5,6 +5,7 @@ import { BookingProgress } from "./BookingProgress";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { fetchServices, fetchBarbers, createAppointment } from "../../api/client";
 import { useBookingStore } from "../../store/bookingStore";
+import { parse, format, addMinutes } from "date-fns";
 
 export function ReviewBooking() {
   const navigate = useNavigate();
@@ -24,14 +25,21 @@ export function ReviewBooking() {
   const MOCK_CUSTOMER_ID = "00000000-0000-0000-0000-000000000000";
 
   const bookMutation = useMutation({
-    mutationFn: () => createAppointment({
-        customer_id: MOCK_CUSTOMER_ID,
-        barber_id: barberId,
-        service_id: serviceId,
-        appointment_date: date,
-        start_time: time + ":00", // "09:30:00" format expected by time type in API
-        end_time: "10:30:00" // mock end time
-    }),
+    mutationFn: () => {
+        const parsedTime = parse(time, "hh:mm a", new Date());
+        const startTime = format(parsedTime, "HH:mm:ss");
+        const duration = selectedService?.duration_minutes || 30;
+        const endTime = format(addMinutes(parsedTime, duration), "HH:mm:ss");
+
+        return createAppointment({
+            customer_id: MOCK_CUSTOMER_ID,
+            barber_id: barberId,
+            service_id: serviceId,
+            appointment_date: date,
+            start_time: startTime,
+            end_time: endTime
+        });
+    },
     onSuccess: () => {
         navigate("/book/confirmation");
     }
