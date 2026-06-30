@@ -1,0 +1,42 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: salon_user
+      POSTGRES_PASSWORD: salon_password
+      POSTGRES_DB: salon_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+
+  api:
+    build: 
+      context: ./backend
+    environment:
+      DATABASE_URL: postgresql://salon_user:salon_password@db/salon_db
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+    restart: always
+
+  proxy:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "81:81"
+      - "82:82"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./apps/manager-portal/dist:/usr/share/nginx/html/manager:ro
+      - ./apps/customer-portal/dist:/usr/share/nginx/html/customer:ro
+      - ./apps/barber-portal/dist:/usr/share/nginx/html/barber:ro
+    depends_on:
+      - api
+    restart: always
+
+volumes:
+  postgres_data:
