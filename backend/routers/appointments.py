@@ -34,8 +34,11 @@ def get_appointments(db: Session = Depends(get_db)):
             "customer": customer.name if customer else "Unknown",
             "barber": barber_user.name if barber_user else "Unknown",
             "service": service.name if service else "Unknown",
-            "time": a.start_time.strftime("%H:%M"),
+            "date": a.appointment_date.strftime("%a, %b %d") if a.appointment_date else "Unknown",
+            "time": a.start_time.strftime("%H:%M") + " - " + a.end_time.strftime("%H:%M") if a.start_time and a.end_time else a.start_time.strftime("%H:%M"),
             "status": a.status.value,
+            "duration": f"{service.duration_minutes}m" if service else "Unknown",
+            "price": f"${service.price:.2f}" if service else "Unknown"
         })
     return result
 

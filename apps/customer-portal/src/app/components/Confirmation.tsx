@@ -3,8 +3,21 @@ import { CheckCircle2, CalendarPlus, Home } from "lucide-react";
 import { useEffect } from "react";
 import confetti from "canvas-confetti";
 import { BookingProgress } from "./BookingProgress";
+import { useBookingStore } from "../../store/bookingStore";
+import { useQuery } from "@tanstack/react-query";
+import { fetchServices, fetchBarbers } from "../../api/client";
 
 export function Confirmation() {
+  const serviceId = useBookingStore((state) => state.serviceId);
+  const barberId = useBookingStore((state) => state.barberId);
+  const date = useBookingStore((state) => state.date);
+  const time = useBookingStore((state) => state.time);
+  
+  const { data: services = [] } = useQuery({ queryKey: ["services"], queryFn: fetchServices });
+  const { data: barbers = [] } = useQuery({ queryKey: ["barbers"], queryFn: fetchBarbers });
+
+  const selectedService = services.find((s: any) => s.id === serviceId);
+  const selectedBarber = barbers.find((b: any) => b.id === barberId);
   useEffect(() => {
     const duration = 3 * 1000;
     const animationEnd = Date.now() + duration;
@@ -51,7 +64,7 @@ export function Confirmation() {
         
         <h1 className="text-4xl font-bold mb-4">Booking Confirmed!</h1>
         <p className="text-muted-foreground text-lg mb-10 max-w-sm mx-auto">
-          You're all set for your appointment with David. We've sent the details to your phone.
+          You're all set for your appointment with {selectedBarber?.name || "your barber"}. We've sent the details to your phone.
         </p>
 
         <div className="bg-card border border-border rounded-3xl p-8 mb-10 text-left shadow-sm">
@@ -60,17 +73,17 @@ export function Confirmation() {
           <div className="space-y-6">
             <div>
               <p className="text-sm text-muted-foreground mb-1">Service</p>
-              <p className="font-medium text-lg">Haircut + Beard Trim</p>
+              <p className="font-medium text-lg">{selectedService?.name || "Service"}</p>
             </div>
             
             <div className="grid grid-cols-2 gap-6">
               <div>
                 <p className="text-sm text-muted-foreground mb-1">Date</p>
-                <p className="font-medium">Thu, Oct 24</p>
+                <p className="font-medium">{date || "TBD"}</p>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground mb-1">Time</p>
-                <p className="font-medium">10:00 AM</p>
+                <p className="font-medium">{time || "TBD"}</p>
               </div>
             </div>
             

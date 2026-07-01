@@ -91,7 +91,7 @@ export default function AppWrapper() {
 }
 
 // HARDCODED MOCK BARBER ID FOR PROOF OF CONCEPT (Langu Maseko)
-const MOCK_BARBER_ID = "11111111-1111-1111-1111-111111111110";
+const MOCK_BARBER_ID = "00000000-0000-0000-0000-000000000000";
 
 function App() {
   const connect = useLiveStore((state) => state.connect);

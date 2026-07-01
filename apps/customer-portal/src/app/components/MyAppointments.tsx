@@ -1,66 +1,45 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Clock, Scissors, Calendar as CalendarIcon, ChevronDown, ChevronUp } from "lucide-react";
 import { ImageWithFallback } from "./figma/ImageWithFallback";
 import { Link } from "react-router";
+import { useQuery } from "@tanstack/react-query";
+import { fetchAppointments } from "../../api/client";
 
 export function MyAppointments() {
   const [tab, setTab] = useState<"upcoming" | "past">("upcoming");
-  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  const appointments = {
-    upcoming: [
-      {
-        id: 1,
-        date: "Thu, Oct 24",
-        time: "10:00 AM - 11:15 AM",
-        service: "Haircut + Beard Trim",
-        duration: "1h 15m",
-        barber: "David",
+  const MOCK_CUSTOMER_NAME = "John Doe"; // The mock customer name returned by the API
+
+  const { data: allAppointments = [] } = useQuery({ queryKey: ["appointments"], queryFn: fetchAppointments });
+
+  const appointments = useMemo(() => {
+    const myApps = allAppointments.filter((a: any) => a.customer === MOCK_CUSTOMER_NAME);
+    const upcoming = myApps.filter((a: any) => a.status === "CONFIRMED" || a.status === "PENDING" || a.status === "ARRIVED" || a.status === "DELAYED");
+    const past = myApps.filter((a: any) => a.status === "COMPLETED" || a.status === "CANCELLED");
+    
+    // Map them to match the UI component structure
+    const mapAppt = (a: any) => ({
+        id: a.id,
+        date: a.date,
+        time: a.time,
+        service: a.service,
+        duration: a.duration,
+        barber: a.barber,
         barberImage: "https://images.unsplash.com/photo-1562004760-aceed7bb0fe3?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxwcm9mZXNzaW9uYWwlMjBtYWxlJTIwYmFyYmVyJTIwcG9ydHJhaXR8ZW58MXx8fHwxNzgxNzg4MzY1fDA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral",
-        status: "Confirmed",
-        price: "$60",
-      },
-      {
-        id: 2,
-        date: "Fri, Nov 15",
-        time: "02:00 PM - 02:45 PM",
-        service: "Haircut",
-        duration: "45m",
-        barber: "Sarah",
-        barberImage: "https://images.unsplash.com/photo-1659355750609-7f3d2c912c3e?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxwcm9mZXNzaW9uYWwlMjB5b3VuZyUyMGZlbWFsZSUyMGJhcmJlciUyMHBvcnRyYWl0fGVufDF8fHx8MTc4MTc4ODM2Nnww&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral",
-        status: "Pending",
-        price: "$40",
-      }
-    ],
-    past: [
-      {
-        id: 3,
-        date: "Mon, Sep 10",
-        time: "11:00 AM - 11:45 AM",
-        service: "Haircut",
-        duration: "45m",
-        barber: "David",
-        barberImage: "https://images.unsplash.com/photo-1562004760-aceed7bb0fe3?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxwcm9mZXNzaW9uYWwlMjBtYWxlJTIwYmFyYmVyJTIwcG9ydHJhaXR8ZW58MXx8fHwxNzgxNzg4MzY1fDA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral",
-        status: "Completed",
-        price: "$40",
-      },
-      {
-        id: 4,
-        date: "Wed, Aug 05",
-        time: "03:30 PM - 04:00 PM",
-        service: "Beard Trim",
-        duration: "30m",
-        barber: "Marcus",
-        barberImage: "https://images.unsplash.com/photo-1553521041-d168abd31de3?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHx5b3VuZyUyMG1hbGUlMjBiYXJiZXIlMjBwb3J0cmFpdHxlbnwxfHx8fDE3ODE3ODgzNjl8MA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral",
-        status: "Completed",
-        price: "$25",
-      }
-    ]
-  };
+        status: a.status.charAt(0) + a.status.slice(1).toLowerCase(),
+        price: a.price,
+    });
+
+    return {
+        upcoming: upcoming.map(mapAppt),
+        past: past.map(mapAppt)
+    };
+  }, [allAppointments]);
 
   const currentList = appointments[tab];
 
-  const toggleExpand = (id: number) => {
+  const toggleExpand = (id: string) => {
     setExpandedId(expandedId === id ? null : id);
   };
 
